@@ -163,17 +163,19 @@ body {{
 
     @app.get("/admin/api/stats")
     async def get_stats(request: Request):
-        _require_admin(request)
         sessions = store.list_all_sessions()
         active = sum(1 for s in sessions if s.status == SessionStatus.ACTIVE)
         completed = sum(1 for s in sessions if s.status == SessionStatus.COMPLETE)
         total_messages = sum(len(s.messages) for s in sessions)
-        total_participants = sum(len(s.participants) for s in sessions)
+        all_participants: set[str] = set()
+        for s in sessions:
+            for p in s.participants:
+                all_participants.add(p.name)
         return {
             "active_sessions": active,
             "completed_sessions": completed,
             "total_messages": total_messages,
-            "total_participants": total_participants,
+            "total_participants": len(all_participants),
         }
 
     admin_frontend_dir = Path(__file__).parent / "admin_frontend"
