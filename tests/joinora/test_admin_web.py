@@ -151,8 +151,21 @@ class TestStatsEndpoint:
         assert data["total_messages"] == 3
         assert data["total_participants"] == 3
 
-    def test_stats_requires_admin_role(self, admin_client):
+    def test_stats_accessible_to_viewer(self, admin_client):
         token = _make_token("viewer-user", "viewer")
         admin_client.cookies.set(_COOKIE_NAME, token)
         resp = admin_client.get("/admin/api/stats")
-        assert resp.status_code == 403
+        assert resp.status_code == 200
+
+    def test_stats_counts_unique_participants(self, admin_client, store):
+        s1 = store.create_session(title="Session A")
+        store.add_participant(s1.id, "alice")
+        s2 = store.create_session(title="Session B")
+        store.add_participant(s2.id, "alice")
+        store.add_participant(s2.id, "bob")
+
+        token = _make_token("admin-user", "admin")
+        admin_client.cookies.set(_COOKIE_NAME, token)
+        resp = admin_client.get("/admin/api/stats")
+        data = resp.json()
+        assert data["total_participants"] == 2
