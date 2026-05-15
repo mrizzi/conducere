@@ -178,6 +178,73 @@ body {{
             "total_participants": len(all_participants),
         }
 
+    @app.get("/admin/api/sessions")
+    async def list_sessions(
+        request: Request,
+        status: str | None = None,
+        q: str | None = None,
+    ):
+        sessions = store.list_all_sessions()
+        if status:
+            sessions = [s for s in sessions if s.status.value == status]
+        if q:
+            q_lower = q.lower()
+            sessions = [s for s in sessions if q_lower in s.title.lower()]
+        return {
+            "sessions": [
+                {
+                    "id": s.id,
+                    "title": s.title,
+                    "status": s.status.value,
+                    "participant_count": len(s.participants),
+                    "message_count": len(s.messages),
+                    "created_at": s.created_at.isoformat(),
+                }
+                for s in sessions
+            ]
+        }
+
+    @app.get("/admin/api/sessions/{session_id}")
+    async def get_session_detail(session_id: str):
+        session = store.get_session(session_id)
+        if session is None:
+            raise HTTPException(status_code=404, detail="Session not found")
+        return {
+            "id": session.id,
+            "title": session.title,
+            "status": session.status.value,
+            "created_at": session.created_at.isoformat(),
+            "participants": [
+                {
+                    "name": p.name,
+                    "last_seen": p.last_seen.isoformat() if p.last_seen else None,
+                }
+                for p in session.participants
+            ],
+            "messages": [m.model_dump(mode="json") for m in session.messages],
+        }
+
+    @app.post("/admin/api/sessions/{session_id}/end")
+    async def end_session(request: Request, session_id: str):
+        _require_admin(request)
+        session = store.get_session(session_id)
+        if session is None:
+            raise HTTPException(status_code=404, detail="Session not found")
+        result = store.end_session(session_id)
+        return result
+
+    @app.post("/admin/api/sessions/{session_id}/reopen")
+    async def reopen_session(request: Request, session_id: str):
+        _require_admin(request)
+        session = store.get_session(session_id)
+        if session is None:
+            raise HTTPException(status_code=404, detail="Session not found")
+        try:
+            store.reopen_session(session_id)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        return {"status": "active"}
+
     admin_frontend_dir = Path(__file__).parent / "admin_frontend"
 
     @app.get("/admin/")
