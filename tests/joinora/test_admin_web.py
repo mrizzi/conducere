@@ -169,3 +169,123 @@ class TestStatsEndpoint:
         resp = admin_client.get("/admin/api/stats")
         data = resp.json()
         assert data["total_participants"] == 2
+
+
+class TestSessionsAPI:
+    def test_list_sessions(self, admin_client, store):
+        store.create_session(title="Session One")
+        store.create_session(title="Session Two")
+
+        token = _make_token("admin-user", "admin")
+        admin_client.cookies.set(_COOKIE_NAME, token)
+        resp = admin_client.get("/admin/api/sessions")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data["sessions"]) == 2
+        titles = {s["title"] for s in data["sessions"]}
+        assert titles == {"Session One", "Session Two"}
+        for s in data["sessions"]:
+            assert "id" in s
+            assert "status" in s
+            assert "participant_count" in s
+            assert "message_count" in s
+            assert "created_at" in s
+
+    def test_list_sessions_filter_by_status(self, admin_client, store):
+        store.create_session(title="Active Session")
+        s2 = store.create_session(title="Completed Session")
+        store.end_session(s2.id)
+
+        token = _make_token("admin-user", "admin")
+        admin_client.cookies.set(_COOKIE_NAME, token)
+        resp = admin_client.get("/admin/api/sessions?status=active")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data["sessions"]) == 1
+        assert data["sessions"][0]["title"] == "Active Session"
+
+    def test_list_sessions_search(self, admin_client, store):
+        store.create_session(title="Sprint Planning")
+        store.create_session(title="Retrospective")
+
+        token = _make_token("admin-user", "admin")
+        admin_client.cookies.set(_COOKIE_NAME, token)
+        resp = admin_client.get("/admin/api/sessions?q=sprint")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data["sessions"]) == 1
+        assert data["sessions"][0]["title"] == "Sprint Planning"
+
+    def test_get_session_detail(self, admin_client, store):
+        s = store.create_session(title="Detail Session")
+        store.add_participant(s.id, "alice")
+        store.add_message(s.id, "alice", "Hello world")
+
+        token = _make_token("admin-user", "admin")
+        admin_client.cookies.set(_COOKIE_NAME, token)
+        resp = admin_client.get(f"/admin/api/sessions/{s.id}")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["id"] == s.id
+        assert data["title"] == "Detail Session"
+        assert data["status"] == "active"
+        assert "created_at" in data
+        assert len(data["participants"]) == 1
+        assert data["participants"][0]["name"] == "alice"
+        assert len(data["messages"]) == 1
+        assert data["messages"][0]["author"] == "alice"
+        assert data["messages"][0]["text"] == "Hello world"
+
+    def test_get_nonexistent_session_returns_404(self, admin_client):
+        token = _make_token("admin-user", "admin")
+        admin_client.cookies.set(_COOKIE_NAME, token)
+        resp = admin_client.get("/admin/api/sessions/nonexistent-id")
+        assert resp.status_code == 404
+
+
+class TestSessionActions:
+    def test_end_session(self, admin_client, store):
+        s = store.create_session(title="To End")
+        store.add_participant(s.id, "alice")
+        store.add_message(s.id, "alice", "msg")
+
+        token = _make_token("admin-user", "admin")
+        admin_client.cookies.set(_COOKIE_NAME, token)
+        resp = admin_client.post(f"/admin/api/sessions/{s.id}/end")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "complete"
+
+        updated = store.get_session(s.id)
+        assert updated.status.value == "complete"
+
+    def test_reopen_session(self, admin_client, store):
+        s = store.create_session(title="To Reopen")
+        store.end_session(s.id)
+
+        token = _make_token("admin-user", "admin")
+        admin_client.cookies.set(_COOKIE_NAME, token)
+        resp = admin_client.post(f"/admin/api/sessions/{s.id}/reopen")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "active"
+
+        updated = store.get_session(s.id)
+        assert updated.status.value == "active"
+
+    def test_viewer_cannot_end_session(self, admin_client, store):
+        s = store.create_session(title="Protected")
+
+        token = _make_token("viewer-user", "viewer")
+        admin_client.cookies.set(_COOKIE_NAME, token)
+        resp = admin_client.post(f"/admin/api/sessions/{s.id}/end")
+        assert resp.status_code == 403
+
+    def test_viewer_cannot_reopen_session(self, admin_client, store):
+        s = store.create_session(title="Protected")
+        store.end_session(s.id)
+
+        token = _make_token("viewer-user", "viewer")
+        admin_client.cookies.set(_COOKIE_NAME, token)
+        resp = admin_client.post(f"/admin/api/sessions/{s.id}/reopen")
+        assert resp.status_code == 403
