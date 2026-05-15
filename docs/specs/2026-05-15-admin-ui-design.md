@@ -2,7 +2,7 @@
 
 ## Overview
 
-A web-based admin dashboard for Joinora, embedded in the existing FastAPI process. Provides session monitoring, participant management, and role-based access control via GitHub OAuth. Vanilla HTML/CSS/JS frontend with no build step, consistent with the participant UI.
+A web-based admin dashboard for Joinora, embedded in the existing FastAPI process. Provides session monitoring, session lifecycle management, and role-based access control via GitHub OAuth. Vanilla HTML/CSS/JS frontend with no build step, consistent with the participant UI.
 
 ## Architecture
 
@@ -67,7 +67,6 @@ File: `admin_roles.json` in the repository root (path configurable via `--admin-
 | View session detail & messages  | yes   | yes    |
 | End session                     | yes   | no     |
 | Reopen session                  | yes   | no     |
-| Remove participant              | yes   | no     |
 | Manage roles (settings)         | yes   | no     |
 
 ## Pages & Layout
@@ -110,7 +109,6 @@ Participants section:
 - List of participant names
 - Last-seen timestamp per participant
 - Online/offline indicator (green dot if last_seen is recent, gray otherwise)
-- Remove button per participant (admin only) — revokes their token
 
 Messages section:
 - Read-only scrollable list of all messages in chronological order
@@ -158,7 +156,6 @@ All under `/admin/` prefix. Protected by auth middleware unless noted.
 | `/admin/api/sessions/{id}` | GET | Full session detail (participants, messages) |
 | `/admin/api/sessions/{id}/end` | POST | End session (admin only) |
 | `/admin/api/sessions/{id}/reopen` | POST | Reopen session (admin only) |
-| `/admin/api/sessions/{id}/participants/{name}` | DELETE | Remove participant (admin only) |
 
 ### Settings Routes
 
@@ -184,7 +181,7 @@ The session detail panel displays the participant URL (`{base_url}/session/{id}`
 
 ### Role-Based UI
 
-Viewer role: action buttons (End, Reopen, Remove participant, role management) are hidden via JS based on the role in the JWT payload (decoded client-side for UI purposes only — all enforcement is server-side).
+Viewer role: action buttons (End, Reopen, role management) are hidden via JS based on the role in the JWT payload (decoded client-side for UI purposes only — all enforcement is server-side).
 
 ## Security Considerations
 
@@ -196,6 +193,7 @@ Viewer role: action buttons (End, Reopen, Remove participant, role management) a
 
 ## What Is Explicitly Out of Scope
 
+- **Participant removal** — sessions are open by design; removing a participant doesn't prevent them from re-joining, making the action meaningless
 - **Message moderation** — messages are immutable; deleting them doesn't remove them from the agent's conversation context, so it would be misleading
 - **Export/import** — the git repository is the persistent record; export can be added later if a real need emerges
 - **Real-time WebSocket updates** — manual refresh is sufficient for admin use
