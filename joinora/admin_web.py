@@ -122,7 +122,7 @@ def create_admin_app(
         if not expected_state or state != expected_state:
             raise HTTPException(status_code=403, detail="Invalid OAuth state")
 
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(10.0, connect=5.0)) as client:
             token_resp = await client.post(
                 "https://github.com/login/oauth/access_token",
                 json={
