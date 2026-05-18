@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Joinora Admin</title>
+    <link rel="stylesheet" href="/admin/static/admin.css">
+    <script src="https://cdn.jsdelivr.net/npm/marked@15.0.7/marked.min.js" integrity="sha384-H+hy9ULve6xfxRkWIh/YOtvDdpXgV2fmAGQkIDTxIgZwNoaoBal14Di2YTMR6MzR" crossorigin="anonymous"></script>
+</head>
+<body>
+    <nav id="nav">
+        <div class="nav-left">
+            <span class="nav-brand">Joinora Admin</span>
+            <a href="#dashboard" class="nav-tab active" data-tab="dashboard">Dashboard</a>
+            <a href="#sessions" class="nav-tab" data-tab="sessions">Sessions</a>
+            <a href="#settings" class="nav-tab" data-tab="settings">Settings</a>
+        </div>
+        <div class="nav-right">
+            <span id="nav-user"></span>
+            <button id="logout-btn" type="button">Logout</button>
+        </div>
+    </nav>
+
+    <div id="view-dashboard" class="view">
+        <div id="stats-cards" class="stats-cards"></div>
+        <div id="recent-sessions"></div>
+    </div>
+
+    <div id="view-sessions" class="view hidden">
+        <div class="sessions-layout">
+            <div class="session-list-panel">
+                <div class="session-list-header">
+                    <input type="text" id="session-search" placeholder="Search sessions..." />
+                    <div class="status-filters">
+                        <button class="filter-btn active" data-status="">All</button>
+                        <button class="filter-btn" data-status="active">Active</button>
+                        <button class="filter-btn" data-status="complete">Complete</button>
+                    </div>
+                </div>
+                <div id="session-list"></div>
+            </div>
+            <div id="session-detail" class="session-detail-panel">
+                <p class="placeholder-text">Select a session to view details</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="view-settings" class="view hidden">
+        <div id="settings-content"></div>
+    </div>
+
+    <script src="/admin/static/admin.js"></script>
+</body>
+</html>
