@@ -339,6 +339,124 @@ class TestSettingsAPI:
         resp = admin_client.get("/api/oauth-status")
         assert resp.status_code == 403
 
+    def test_cannot_empty_admin_list(self, admin_client):
+        token = _make_token("admin-user", "admin")
+        admin_client.cookies.set(_COOKIE_NAME, token)
+        resp = admin_client.put(
+            "/api/roles",
+            json={"admin": [], "viewer": ["admin-user"]},
+        )
+        assert resp.status_code == 422
+
+
+class TestOAuthCallback:
+    def _mock_github(self, username="admin-user", access_token="gho_fake"):
+        from unittest.mock import AsyncMock
+
+        mock_client = AsyncMock()
+        mock_client.post.return_value = AsyncMock(
+            json=lambda: (
+                {"access_token": access_token}
+                if access_token
+                else {"error": "bad_code"}
+            )
+        )
+        mock_client.get.return_value = AsyncMock(json=lambda: {"login": username})
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        return mock_client
+
+    def test_successful_login_sets_cookie_and_redirects(self, admin_client):
+        from unittest.mock import patch
+
+        state = "test-state-value"
+        admin_client.cookies.set("_oauth_state", state)
+        with patch(
+            "joinora.admin_web.httpx.AsyncClient", return_value=self._mock_github()
+        ):
+            resp = admin_client.get(f"/callback?code=test-code&state={state}")
+        assert resp.status_code == 307
+        assert "/admin/" in resp.headers["location"]
+        set_cookie = resp.headers.get("set-cookie", "")
+        assert _COOKIE_NAME in set_cookie
+        assert "httponly" in set_cookie.lower()
+
+    def test_missing_state_returns_403(self, admin_client):
+        from unittest.mock import patch
+
+        admin_client.cookies.set("_oauth_state", "expected-state")
+        with patch(
+            "joinora.admin_web.httpx.AsyncClient", return_value=self._mock_github()
+        ):
+            resp = admin_client.get("/callback?code=test-code&state=wrong-state")
+        assert resp.status_code == 403
+
+    def test_missing_access_token_returns_401(self, admin_client):
+        from unittest.mock import patch
+
+        state = "test-state"
+        admin_client.cookies.set("_oauth_state", state)
+        with patch(
+            "joinora.admin_web.httpx.AsyncClient",
+            return_value=self._mock_github(access_token=None),
+        ):
+            resp = admin_client.get(f"/callback?code=bad-code&state={state}")
+        assert resp.status_code == 401
+
+    def test_unknown_user_returns_403(self, admin_client):
+        from unittest.mock import patch
+
+        state = "test-state"
+        admin_client.cookies.set("_oauth_state", state)
+        with patch(
+            "joinora.admin_web.httpx.AsyncClient",
+            return_value=self._mock_github(username="unknown-user"),
+        ):
+            resp = admin_client.get(f"/callback?code=test-code&state={state}")
+        assert resp.status_code == 403
+
+
+class TestSessionActionErrors:
+    def test_end_nonexistent_session_returns_404(self, admin_client):
+        token = _make_token("admin-user", "admin")
+        admin_client.cookies.set(_COOKIE_NAME, token)
+        resp = admin_client.post("/api/sessions/nonexistent-id/end")
+        assert resp.status_code == 404
+
+    def test_reopen_nonexistent_session_returns_400(self, admin_client):
+        token = _make_token("admin-user", "admin")
+        admin_client.cookies.set(_COOKIE_NAME, token)
+        resp = admin_client.post("/api/sessions/nonexistent-id/reopen")
+        assert resp.status_code == 400
+
+    def test_reopen_active_session_returns_400(self, admin_client, store):
+        s = store.create_session(title="Already Active")
+        token = _make_token("admin-user", "admin")
+        admin_client.cookies.set(_COOKIE_NAME, token)
+        resp = admin_client.post(f"/api/sessions/{s.id}/reopen")
+        assert resp.status_code == 400
+
+
+class TestLoginPage:
+    def test_login_page_contains_github_oauth_url(self, admin_client):
+        resp = admin_client.get("/login")
+        assert resp.status_code == 200
+        body = resp.text
+        assert "github.com/login/oauth/authorize" in body
+        assert "fake-client-id" in body
+        assert "admin" in body and "callback" in body
+
+
+class TestRolesAccess:
+    def test_viewer_can_read_roles(self, admin_client):
+        token = _make_token("viewer-user", "viewer")
+        admin_client.cookies.set(_COOKIE_NAME, token)
+        resp = admin_client.get("/api/roles")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "admin" in data
+        assert "viewer" in data
+
 
 class TestAdminFrontend:
     def test_admin_spa_serves_html(self, admin_client):

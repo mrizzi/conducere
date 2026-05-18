@@ -9,6 +9,34 @@ body {
 
 .hidden { display: none; }
 
+/* Login page */
+.login-box {
+    text-align: center;
+    padding: 3rem;
+    border-radius: 12px;
+    background: #2a2a4a;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+.login-box h1 { margin-bottom: 2rem; }
+
+.login-box a {
+    display: inline-block;
+    padding: 0.75rem 2rem;
+    border-radius: 8px;
+    background: #238636;
+    color: #fff;
+    text-decoration: none;
+    font-weight: 600;
+    transition: background 0.2s;
+}
+
+.login-box a:hover { background: #2ea043; }
+
 /* Nav bar */
 #nav {
     display: flex;
@@ -132,6 +160,10 @@ body {
     border-bottom: 1px solid #1e293b;
 }
 
+.sessions-table tbody tr {
+    cursor: pointer;
+}
+
 .sessions-table tr:hover td {
     background: #2a2a4a;
 }
@@ -220,6 +252,8 @@ body {
 
 .session-item:hover { background: #2a2a4a; }
 .session-item.active { background: #2a2a4a; border-left: 3px solid #60a5fa; }
+.session-item-title { font-size: 0.9rem; font-weight: 500; color: #e0e0e0; }
+.session-item-meta { font-size: 0.8rem; color: #64748b; margin-top: 4px; }
 
 /* Session detail */
 .detail-header {
@@ -420,11 +454,27 @@ body {
 
 .add-role-row input::placeholder { color: #64748b; }
 
+.add-role-row select {
+    padding: 6px 10px;
+    background: #1a1a2e;
+    color: #e0e0e0;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    font-size: 0.85rem;
+}
+
 .oauth-info {
     font-size: 0.9rem;
     color: #94a3b8;
     line-height: 1.6;
 }
+
+.oauth-info dt {
+    font-weight: 600;
+    color: #e0e0e0;
+}
+
+.oauth-info dd { margin-bottom: 8px; }
 
 /* Status dot */
 .status-dot {

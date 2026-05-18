@@ -1,12 +1,13 @@
 import json
+import secrets
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import urlencode
 
 import httpx
 import jwt
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
+from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -66,61 +67,61 @@ def create_admin_app(
             if token:
                 try:
                     payload = jwt.decode(token, jwt_secret, algorithms=[_JWT_ALGORITHM])
-                    request.state.username = payload["sub"]
-                    request.state.role = payload["role"]
-                    return await call_next(request)
+                    username = payload.get("sub")
+                    role = payload.get("role")
+                    if username and role:
+                        request.state.username = username
+                        request.state.role = role
+                        return await call_next(request)
                 except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
                     pass
 
-            return RedirectResponse(url="/login", status_code=307)
+            return RedirectResponse(url="/admin/login", status_code=307)
 
     app.add_middleware(AdminAuthMiddleware)
 
-    @app.get("/login", response_class=HTMLResponse)
+    @app.get("/login")
     async def login_page():
+        state = secrets.token_urlsafe(32)
         params = urlencode(
             {
                 "client_id": github_client_id,
                 "redirect_uri": f"{base_url}/admin/callback",
                 "scope": "read:user",
+                "state": state,
             }
         )
         github_url = f"https://github.com/login/oauth/authorize?{params}"
-        return f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Joinora Admin - Sign In</title>
-<style>
-body {{
-    background: #1a1a2e; color: #e0e0e0; font-family: system-ui, sans-serif;
-    display: flex; justify-content: center; align-items: center;
-    min-height: 100vh; margin: 0;
-}}
-.login-box {{
-    text-align: center; padding: 3rem; border-radius: 12px;
-    background: #16213e; box-shadow: 0 4px 24px rgba(0,0,0,0.3);
-}}
-.login-box h1 {{ margin-bottom: 2rem; }}
-.login-box a {{
-    display: inline-block; padding: 0.75rem 2rem; border-radius: 8px;
-    background: #0f3460; color: #e0e0e0; text-decoration: none;
-    font-weight: 600; transition: background 0.2s;
-}}
-.login-box a:hover {{ background: #533483; }}
-</style>
-</head>
-<body>
-<div class="login-box">
-<h1>Joinora Admin</h1>
-<a href="{github_url}">Sign in with GitHub</a>
-</div>
-</body>
-</html>"""
+        response = Response(
+            content=(
+                "<!DOCTYPE html>"
+                '<html lang="en"><head><meta charset="utf-8">'
+                '<meta name="viewport" content="width=device-width,initial-scale=1">'
+                "<title>Joinora Admin - Sign In</title>"
+                '<link rel="stylesheet" href="/admin/static/admin.css">'
+                "</head><body>"
+                '<div class="login-box">'
+                "<h1>Joinora Admin</h1>"
+                f'<a href="{github_url}">Sign in with GitHub</a>'
+                "</div></body></html>"
+            ),
+            media_type="text/html",
+        )
+        response.set_cookie(
+            key="_oauth_state",
+            value=state,
+            httponly=True,
+            samesite="lax",
+            max_age=600,
+        )
+        return response
 
     @app.get("/callback")
-    async def github_callback(code: str):
+    async def github_callback(code: str, state: str, request: Request):
+        expected_state = request.cookies.get("_oauth_state")
+        if not expected_state or state != expected_state:
+            raise HTTPException(status_code=403, detail="Invalid OAuth state")
+
         async with httpx.AsyncClient() as client:
             token_resp = await client.post(
                 "https://github.com/login/oauth/access_token",
@@ -152,18 +153,20 @@ body {{
         }
         token = jwt.encode(payload, jwt_secret, algorithm=_JWT_ALGORITHM)
 
-        response = RedirectResponse(url="/", status_code=307)
+        response = RedirectResponse(url="/admin/", status_code=307)
         response.set_cookie(
             key=_COOKIE_NAME,
             value=token,
             httponly=True,
             samesite="lax",
+            max_age=_JWT_EXPIRY_HOURS * 3600,
         )
+        response.delete_cookie(key="_oauth_state")
         return response
 
     @app.post("/logout")
     async def logout():
-        response = RedirectResponse(url="/login", status_code=307)
+        response = RedirectResponse(url="/admin/login", status_code=307)
         response.delete_cookie(key=_COOKIE_NAME)
         return response
 
@@ -233,18 +236,15 @@ body {{
     @app.post("/api/sessions/{session_id}/end")
     async def end_session(request: Request, session_id: str):
         _require_admin(request)
-        session = store.get_session(session_id)
-        if session is None:
-            raise HTTPException(status_code=404, detail="Session not found")
-        result = store.end_session(session_id)
+        try:
+            result = store.end_session(session_id)
+        except ValueError as e:
+            raise HTTPException(status_code=404, detail=str(e))
         return result
 
     @app.post("/api/sessions/{session_id}/reopen")
     async def reopen_session(request: Request, session_id: str):
         _require_admin(request)
-        session = store.get_session(session_id)
-        if session is None:
-            raise HTTPException(status_code=404, detail="Session not found")
         try:
             store.reopen_session(session_id)
         except ValueError as e:
@@ -260,9 +260,24 @@ body {{
         nonlocal roles
         _require_admin(request)
         new_roles = await request.json()
+        if not isinstance(new_roles, dict):
+            raise HTTPException(status_code=422, detail="Expected JSON object")
+        validated = {"admin": [], "viewer": []}
+        for key in validated:
+            if key in new_roles:
+                if not isinstance(new_roles[key], list) or not all(
+                    isinstance(u, str) for u in new_roles[key]
+                ):
+                    raise HTTPException(
+                        status_code=422,
+                        detail=f"'{key}' must be a list of strings",
+                    )
+                validated[key] = new_roles[key]
+        if not validated["admin"]:
+            raise HTTPException(status_code=422, detail="Admin list cannot be empty")
         with open(roles_path, "w") as f:
-            json.dump(new_roles, f, indent=2)
-        roles = new_roles
+            json.dump(validated, f, indent=2)
+        roles = validated
         return roles
 
     @app.get("/api/oauth-status")
