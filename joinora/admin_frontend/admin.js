@@ -1,11 +1,26 @@
 (function () {
+    function esc(str) {
+        var d = document.createElement("div");
+        d.textContent = str;
+        return d.innerHTML;
+    }
+
     var renderer = new marked.Renderer();
-    renderer.link = function ({ href, text }) {
+    renderer.html = function (token) {
+        return esc(typeof token === "string" ? token : token.text);
+    };
+    renderer.link = function (ref) {
+        var href = ref.href;
+        if (href && /^(javascript|data|vbscript):/i.test(href.replace(/\s/g, ""))) {
+            var span = document.createElement("span");
+            span.textContent = ref.text;
+            return span.outerHTML;
+        }
         var a = document.createElement("a");
         a.href = href;
-        a.textContent = text;
+        a.textContent = ref.text;
         a.target = "_blank";
-        a.rel = "noopener";
+        a.rel = "noopener noreferrer";
         return a.outerHTML;
     };
     marked.setOptions({ breaks: true, renderer: renderer });
@@ -138,7 +153,7 @@
                 var tbody = document.createElement("tbody");
                 data.sessions.forEach(function (s) {
                     var tr = document.createElement("tr");
-                    tr.style.cursor = "pointer";
+
                     tr.addEventListener("click", function () {
                         window.location.hash = "sessions/" + s.id;
                     });
@@ -291,7 +306,6 @@
                         endBtn.addEventListener("click", function () {
                             fetch("/admin/api/sessions/" + sessionId + "/end", { method: "POST" })
                                 .then(function () {
-                                    loadSessionDetail(sessionId);
                                     loadSessions(sessionId);
                                 });
                         });
@@ -303,7 +317,6 @@
                         reopenBtn.addEventListener("click", function () {
                             fetch("/admin/api/sessions/" + sessionId + "/reopen", { method: "POST" })
                                 .then(function () {
-                                    loadSessionDetail(sessionId);
                                     loadSessions(sessionId);
                                 });
                         });
@@ -400,7 +413,6 @@
 
                     var textEl = document.createElement("div");
                     textEl.className = "msg-text";
-                    // marked.parse for message content is the only acceptable innerHTML usage
                     textEl.innerHTML = marked.parse(m.text);
                     msgDiv.appendChild(textEl);
 
@@ -511,7 +523,6 @@
                     addRow.appendChild(input);
 
                     var select = document.createElement("select");
-                    select.style.cssText = "padding:6px 10px;background:#1a1a2e;color:#e0e0e0;border:1px solid #334155;border-radius:6px;font-size:0.85rem;";
                     ["admin", "viewer"].forEach(function (r) {
                         var opt = document.createElement("option");
                         opt.value = r;
@@ -571,13 +582,10 @@
                             items.forEach(function (item) {
                                 var dt = document.createElement("dt");
                                 dt.textContent = item.label;
-                                dt.style.fontWeight = "600";
-                                dt.style.color = "#e0e0e0";
                                 dl.appendChild(dt);
 
                                 var dd = document.createElement("dd");
                                 dd.textContent = item.value;
-                                dd.style.marginBottom = "8px";
                                 dl.appendChild(dd);
                             });
 

@@ -110,6 +110,7 @@ joinora --repo-path /path/to/data --web-port 24298
 | `--web-host` | `localhost` | Web server bind address |
 | `--web-port` | `24298` | Web server port |
 | `--transport` | `stdio` | MCP transport: `stdio` or `streamable-http` |
+| `--admin-roles` | none | Path to `admin_roles.json` to enable the admin UI |
 
 ### Local Test
 
@@ -238,6 +239,73 @@ The in-memory store acts as a cache; the git repo is the source of truth.
 
 ---
 
+## Admin UI
+
+Joinora includes an optional admin dashboard for monitoring sessions, managing session lifecycle, and controlling access. It requires GitHub OAuth for authentication.
+
+### Setting Up GitHub OAuth
+
+1. Go to [github.com/settings/developers](https://github.com/settings/developers) and click **New OAuth App** (or **Register a new application** under OAuth Apps).
+
+2. Fill in the form:
+
+   | Field | Value |
+   |-------|-------|
+   | **Application name** | `Joinora Admin` (or any name you prefer) |
+   | **Homepage URL** | `http://localhost:24298` (your Joinora server URL) |
+   | **Authorization callback URL** | `http://localhost:24298/admin/callback` |
+
+   If deploying to a remote host, replace `localhost:24298` with your actual host and port.
+
+3. Click **Register application**.
+
+4. On the app page, copy the **Client ID**.
+
+5. Click **Generate a new client secret** and copy the secret immediately — it won't be shown again.
+
+### Configuring Joinora
+
+1. Create an `admin_roles.json` file mapping GitHub usernames to roles:
+
+   ```json
+   {
+     "admin": ["your-github-username"],
+     "viewer": ["colleague-github-username"]
+   }
+   ```
+
+   - **admin** — full control: end/reopen sessions, manage roles
+   - **viewer** — read-only access to the dashboard and session history
+
+2. Export the OAuth credentials as environment variables:
+
+   ```bash
+   export JOINORA_GITHUB_CLIENT_ID=your_client_id
+   export JOINORA_GITHUB_CLIENT_SECRET=your_client_secret
+   ```
+
+   Optionally set a stable JWT secret so admin sessions survive server restarts:
+
+   ```bash
+   export JOINORA_ADMIN_JWT_SECRET=any-long-random-string
+   ```
+
+3. Start the server with the `--admin-roles` flag:
+
+   ```bash
+   joinora --repo-path /path/to/data --admin-roles admin_roles.json
+   ```
+
+4. Open `http://localhost:24298/admin/` in your browser and sign in with GitHub.
+
+### Admin Dashboard Features
+
+- **Dashboard** — active/completed session counts, total messages and participants, recent sessions list
+- **Sessions** — searchable session list with status filters, session detail view with participant list, message history, session URL with copy button, and end/reopen controls
+- **Settings** — role management (add/remove GitHub users), OAuth configuration status
+
+---
+
 ## Development
 
 ```bash
@@ -265,7 +333,9 @@ joinora/
   web.py              # FastAPI web app (REST + WebSocket)
   git_store.py        # pygit2 wrapper
   ws_manager.py       # WebSocket connection manager
+  admin_web.py        # Admin dashboard routes + GitHub OAuth
   frontend/           # Vanilla HTML/CSS/JS conversation thread UI
+  admin_frontend/     # Admin dashboard SPA (HTML/CSS/JS)
 skill/
   skills/joinora/   # /joinora adapter skill (BYOS wrapper)
 tests/joinora/      # Tests
