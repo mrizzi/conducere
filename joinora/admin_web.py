@@ -17,7 +17,7 @@ _JWT_ALGORITHM = "HS256"
 _COOKIE_NAME = "joinora_admin"
 _JWT_EXPIRY_HOURS = 24
 
-_PUBLIC_PATHS = {"/admin/login", "/admin/callback"}
+_PUBLIC_PATHS = {"/login", "/callback"}
 
 
 def load_roles(path: Path) -> dict[str, list[str]]:
@@ -52,8 +52,14 @@ def create_admin_app(
 
     class AdminAuthMiddleware(BaseHTTPMiddleware):
         async def dispatch(self, request: Request, call_next):
-            path = request.url.path
-            if path in _PUBLIC_PATHS or path.startswith("/admin/static"):
+            root = request.scope.get("root_path", "")
+            full_path = request.url.path
+            path = (
+                full_path[len(root) :]
+                if root and full_path.startswith(root)
+                else full_path
+            )
+            if path in _PUBLIC_PATHS or path.startswith("/static"):
                 return await call_next(request)
 
             token = request.cookies.get(_COOKIE_NAME)
@@ -66,11 +72,11 @@ def create_admin_app(
                 except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
                     pass
 
-            return RedirectResponse(url="/admin/login", status_code=307)
+            return RedirectResponse(url="/login", status_code=307)
 
     app.add_middleware(AdminAuthMiddleware)
 
-    @app.get("/admin/login", response_class=HTMLResponse)
+    @app.get("/login", response_class=HTMLResponse)
     async def login_page():
         params = urlencode(
             {
@@ -113,7 +119,7 @@ body {{
 </body>
 </html>"""
 
-    @app.get("/admin/callback")
+    @app.get("/callback")
     async def github_callback(code: str):
         async with httpx.AsyncClient() as client:
             token_resp = await client.post(
@@ -146,7 +152,7 @@ body {{
         }
         token = jwt.encode(payload, jwt_secret, algorithm=_JWT_ALGORITHM)
 
-        response = RedirectResponse(url="/admin/", status_code=307)
+        response = RedirectResponse(url="/", status_code=307)
         response.set_cookie(
             key=_COOKIE_NAME,
             value=token,
@@ -155,13 +161,13 @@ body {{
         )
         return response
 
-    @app.post("/admin/logout")
+    @app.post("/logout")
     async def logout():
-        response = RedirectResponse(url="/admin/login", status_code=307)
+        response = RedirectResponse(url="/login", status_code=307)
         response.delete_cookie(key=_COOKIE_NAME)
         return response
 
-    @app.get("/admin/api/stats")
+    @app.get("/api/stats")
     async def get_stats(request: Request):
         sessions = store.list_all_sessions()
         active = sum(1 for s in sessions if s.status == SessionStatus.ACTIVE)
@@ -178,7 +184,7 @@ body {{
             "total_participants": len(all_participants),
         }
 
-    @app.get("/admin/api/sessions")
+    @app.get("/api/sessions")
     async def list_sessions(
         request: Request,
         status: str | None = None,
@@ -204,7 +210,7 @@ body {{
             ]
         }
 
-    @app.get("/admin/api/sessions/{session_id}")
+    @app.get("/api/sessions/{session_id}")
     async def get_session_detail(session_id: str):
         session = store.get_session(session_id)
         if session is None:
@@ -224,7 +230,7 @@ body {{
             "messages": [m.model_dump(mode="json") for m in session.messages],
         }
 
-    @app.post("/admin/api/sessions/{session_id}/end")
+    @app.post("/api/sessions/{session_id}/end")
     async def end_session(request: Request, session_id: str):
         _require_admin(request)
         session = store.get_session(session_id)
@@ -233,7 +239,7 @@ body {{
         result = store.end_session(session_id)
         return result
 
-    @app.post("/admin/api/sessions/{session_id}/reopen")
+    @app.post("/api/sessions/{session_id}/reopen")
     async def reopen_session(request: Request, session_id: str):
         _require_admin(request)
         session = store.get_session(session_id)
@@ -245,11 +251,11 @@ body {{
             raise HTTPException(status_code=400, detail=str(e))
         return {"status": "active"}
 
-    @app.get("/admin/api/roles")
+    @app.get("/api/roles")
     async def get_roles(request: Request):
         return roles
 
-    @app.put("/admin/api/roles")
+    @app.put("/api/roles")
     async def update_roles(request: Request):
         nonlocal roles
         _require_admin(request)
@@ -259,7 +265,7 @@ body {{
         roles = new_roles
         return roles
 
-    @app.get("/admin/api/oauth-status")
+    @app.get("/api/oauth-status")
     async def get_oauth_status(request: Request):
         _require_admin(request)
         configured = bool(github_client_id and github_client_secret)
@@ -272,7 +278,7 @@ body {{
 
     admin_frontend_dir = Path(__file__).parent / "admin_frontend"
 
-    @app.get("/admin/")
+    @app.get("/")
     async def admin_spa():
         index = admin_frontend_dir / "index.html"
         if index.exists():
@@ -281,7 +287,7 @@ body {{
 
     if admin_frontend_dir.exists():
         app.mount(
-            "/admin/static",
+            "/static",
             StaticFiles(directory=str(admin_frontend_dir)),
             name="admin_static",
         )

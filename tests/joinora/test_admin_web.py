@@ -90,40 +90,40 @@ def admin_client(admin_app):
 
 class TestAuthMiddleware:
     def test_unauthenticated_redirects_to_login(self, admin_client):
-        resp = admin_client.get("/admin/api/stats")
+        resp = admin_client.get("/api/stats")
         assert resp.status_code == 307
-        assert "/admin/login" in resp.headers["location"]
+        assert "/login" in resp.headers["location"]
 
     def test_login_page_accessible_without_auth(self, admin_client):
-        resp = admin_client.get("/admin/login")
+        resp = admin_client.get("/login")
         assert resp.status_code == 200
 
     def test_valid_cookie_passes_middleware(self, admin_client):
         token = _make_token("admin-user", "admin")
         admin_client.cookies.set(_COOKIE_NAME, token)
-        resp = admin_client.get("/admin/api/stats")
+        resp = admin_client.get("/api/stats")
         assert resp.status_code == 200
 
     def test_expired_cookie_redirects(self, admin_client):
         token = _make_token("admin-user", "admin", exp_hours=-1)
         admin_client.cookies.set(_COOKIE_NAME, token)
-        resp = admin_client.get("/admin/api/stats")
+        resp = admin_client.get("/api/stats")
         assert resp.status_code == 307
-        assert "/admin/login" in resp.headers["location"]
+        assert "/login" in resp.headers["location"]
 
     def test_invalid_secret_redirects(self, admin_client):
         token = _make_token("admin-user", "admin", secret="wrong-secret")
         admin_client.cookies.set(_COOKIE_NAME, token)
-        resp = admin_client.get("/admin/api/stats")
+        resp = admin_client.get("/api/stats")
         assert resp.status_code == 307
-        assert "/admin/login" in resp.headers["location"]
+        assert "/login" in resp.headers["location"]
 
     def test_logout_clears_cookie(self, admin_client):
         token = _make_token("admin-user", "admin")
         admin_client.cookies.set(_COOKIE_NAME, token)
-        resp = admin_client.post("/admin/logout")
+        resp = admin_client.post("/logout")
         assert resp.status_code == 307
-        assert "/admin/login" in resp.headers["location"]
+        assert "/login" in resp.headers["location"]
         set_cookie = resp.headers.get("set-cookie", "")
         assert _COOKIE_NAME in set_cookie
 
@@ -143,7 +143,7 @@ class TestStatsEndpoint:
 
         token = _make_token("admin-user", "admin")
         admin_client.cookies.set(_COOKIE_NAME, token)
-        resp = admin_client.get("/admin/api/stats")
+        resp = admin_client.get("/api/stats")
         assert resp.status_code == 200
         data = resp.json()
         assert data["active_sessions"] == 1
@@ -154,7 +154,7 @@ class TestStatsEndpoint:
     def test_stats_accessible_to_viewer(self, admin_client):
         token = _make_token("viewer-user", "viewer")
         admin_client.cookies.set(_COOKIE_NAME, token)
-        resp = admin_client.get("/admin/api/stats")
+        resp = admin_client.get("/api/stats")
         assert resp.status_code == 200
 
     def test_stats_counts_unique_participants(self, admin_client, store):
@@ -166,7 +166,7 @@ class TestStatsEndpoint:
 
         token = _make_token("admin-user", "admin")
         admin_client.cookies.set(_COOKIE_NAME, token)
-        resp = admin_client.get("/admin/api/stats")
+        resp = admin_client.get("/api/stats")
         data = resp.json()
         assert data["total_participants"] == 2
 
@@ -178,7 +178,7 @@ class TestSessionsAPI:
 
         token = _make_token("admin-user", "admin")
         admin_client.cookies.set(_COOKIE_NAME, token)
-        resp = admin_client.get("/admin/api/sessions")
+        resp = admin_client.get("/api/sessions")
         assert resp.status_code == 200
         data = resp.json()
         assert len(data["sessions"]) == 2
@@ -198,7 +198,7 @@ class TestSessionsAPI:
 
         token = _make_token("admin-user", "admin")
         admin_client.cookies.set(_COOKIE_NAME, token)
-        resp = admin_client.get("/admin/api/sessions?status=active")
+        resp = admin_client.get("/api/sessions?status=active")
         assert resp.status_code == 200
         data = resp.json()
         assert len(data["sessions"]) == 1
@@ -210,7 +210,7 @@ class TestSessionsAPI:
 
         token = _make_token("admin-user", "admin")
         admin_client.cookies.set(_COOKIE_NAME, token)
-        resp = admin_client.get("/admin/api/sessions?q=sprint")
+        resp = admin_client.get("/api/sessions?q=sprint")
         assert resp.status_code == 200
         data = resp.json()
         assert len(data["sessions"]) == 1
@@ -223,7 +223,7 @@ class TestSessionsAPI:
 
         token = _make_token("admin-user", "admin")
         admin_client.cookies.set(_COOKIE_NAME, token)
-        resp = admin_client.get(f"/admin/api/sessions/{s.id}")
+        resp = admin_client.get(f"/api/sessions/{s.id}")
         assert resp.status_code == 200
         data = resp.json()
         assert data["id"] == s.id
@@ -239,7 +239,7 @@ class TestSessionsAPI:
     def test_get_nonexistent_session_returns_404(self, admin_client):
         token = _make_token("admin-user", "admin")
         admin_client.cookies.set(_COOKIE_NAME, token)
-        resp = admin_client.get("/admin/api/sessions/nonexistent-id")
+        resp = admin_client.get("/api/sessions/nonexistent-id")
         assert resp.status_code == 404
 
 
@@ -251,7 +251,7 @@ class TestSessionActions:
 
         token = _make_token("admin-user", "admin")
         admin_client.cookies.set(_COOKIE_NAME, token)
-        resp = admin_client.post(f"/admin/api/sessions/{s.id}/end")
+        resp = admin_client.post(f"/api/sessions/{s.id}/end")
         assert resp.status_code == 200
         data = resp.json()
         assert data["status"] == "complete"
@@ -265,7 +265,7 @@ class TestSessionActions:
 
         token = _make_token("admin-user", "admin")
         admin_client.cookies.set(_COOKIE_NAME, token)
-        resp = admin_client.post(f"/admin/api/sessions/{s.id}/reopen")
+        resp = admin_client.post(f"/api/sessions/{s.id}/reopen")
         assert resp.status_code == 200
         data = resp.json()
         assert data["status"] == "active"
@@ -278,7 +278,7 @@ class TestSessionActions:
 
         token = _make_token("viewer-user", "viewer")
         admin_client.cookies.set(_COOKIE_NAME, token)
-        resp = admin_client.post(f"/admin/api/sessions/{s.id}/end")
+        resp = admin_client.post(f"/api/sessions/{s.id}/end")
         assert resp.status_code == 403
 
     def test_viewer_cannot_reopen_session(self, admin_client, store):
@@ -287,7 +287,7 @@ class TestSessionActions:
 
         token = _make_token("viewer-user", "viewer")
         admin_client.cookies.set(_COOKIE_NAME, token)
-        resp = admin_client.post(f"/admin/api/sessions/{s.id}/reopen")
+        resp = admin_client.post(f"/api/sessions/{s.id}/reopen")
         assert resp.status_code == 403
 
 
@@ -295,7 +295,7 @@ class TestSettingsAPI:
     def test_get_roles(self, admin_client):
         token = _make_token("admin-user", "admin")
         admin_client.cookies.set(_COOKIE_NAME, token)
-        resp = admin_client.get("/admin/api/roles")
+        resp = admin_client.get("/api/roles")
         assert resp.status_code == 200
         data = resp.json()
         assert "admin-user" in data["admin"]
@@ -305,12 +305,12 @@ class TestSettingsAPI:
         token = _make_token("admin-user", "admin")
         admin_client.cookies.set(_COOKIE_NAME, token)
         new_roles = {"admin": ["admin-user", "new-admin"], "viewer": ["viewer-user"]}
-        resp = admin_client.put("/admin/api/roles", json=new_roles)
+        resp = admin_client.put("/api/roles", json=new_roles)
         assert resp.status_code == 200
         data = resp.json()
         assert data == new_roles
 
-        resp = admin_client.get("/admin/api/roles")
+        resp = admin_client.get("/api/roles")
         assert resp.status_code == 200
         assert resp.json() == new_roles
 
@@ -318,7 +318,7 @@ class TestSettingsAPI:
         token = _make_token("viewer-user", "viewer")
         admin_client.cookies.set(_COOKIE_NAME, token)
         resp = admin_client.put(
-            "/admin/api/roles",
+            "/api/roles",
             json={"admin": ["viewer-user"], "viewer": []},
         )
         assert resp.status_code == 403
@@ -326,7 +326,7 @@ class TestSettingsAPI:
     def test_get_oauth_status(self, admin_client):
         token = _make_token("admin-user", "admin")
         admin_client.cookies.set(_COOKIE_NAME, token)
-        resp = admin_client.get("/admin/api/oauth-status")
+        resp = admin_client.get("/api/oauth-status")
         assert resp.status_code == 200
         data = resp.json()
         assert data["configured"] is True
@@ -336,5 +336,38 @@ class TestSettingsAPI:
     def test_viewer_cannot_see_oauth_status(self, admin_client):
         token = _make_token("viewer-user", "viewer")
         admin_client.cookies.set(_COOKIE_NAME, token)
-        resp = admin_client.get("/admin/api/oauth-status")
+        resp = admin_client.get("/api/oauth-status")
         assert resp.status_code == 403
+
+
+class TestAdminIntegration:
+    def test_admin_routes_mounted_on_web_app(self, store, roles_file):
+        from joinora.web import create_web_app
+
+        app = create_web_app(
+            store=store,
+            admin_roles_path=roles_file,
+            jwt_secret="test-secret-key-for-jwt-minimum-32b",
+            github_client_id="test-id",
+            github_client_secret="test-secret",
+            base_url="http://localhost:8000",
+        )
+        client = TestClient(app, follow_redirects=False)
+        resp = client.get("/admin/login")
+        assert resp.status_code == 200
+
+    def test_participant_routes_still_work(self, store, roles_file):
+        from joinora.web import create_web_app
+
+        app = create_web_app(
+            store=store,
+            admin_roles_path=roles_file,
+            jwt_secret="test-secret-key-for-jwt-minimum-32b",
+            github_client_id="test-id",
+            github_client_secret="test-secret",
+            base_url="http://localhost:8000",
+        )
+        client = TestClient(app)
+        session = store.create_session(title="Test")
+        resp = client.get(f"/api/sessions/{session.id}")
+        assert resp.status_code == 200
