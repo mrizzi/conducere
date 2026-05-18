@@ -245,6 +245,31 @@ body {{
             raise HTTPException(status_code=400, detail=str(e))
         return {"status": "active"}
 
+    @app.get("/admin/api/roles")
+    async def get_roles(request: Request):
+        return roles
+
+    @app.put("/admin/api/roles")
+    async def update_roles(request: Request):
+        nonlocal roles
+        _require_admin(request)
+        new_roles = await request.json()
+        with open(roles_path, "w") as f:
+            json.dump(new_roles, f, indent=2)
+        roles = new_roles
+        return roles
+
+    @app.get("/admin/api/oauth-status")
+    async def get_oauth_status(request: Request):
+        _require_admin(request)
+        configured = bool(github_client_id and github_client_secret)
+        masked_id = github_client_id[:4] + "***" if github_client_id else ""
+        return {
+            "configured": configured,
+            "client_id": masked_id,
+            "callback_url": f"{base_url}/admin/callback",
+        }
+
     admin_frontend_dir = Path(__file__).parent / "admin_frontend"
 
     @app.get("/admin/")

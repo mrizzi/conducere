@@ -289,3 +289,52 @@ class TestSessionActions:
         admin_client.cookies.set(_COOKIE_NAME, token)
         resp = admin_client.post(f"/admin/api/sessions/{s.id}/reopen")
         assert resp.status_code == 403
+
+
+class TestSettingsAPI:
+    def test_get_roles(self, admin_client):
+        token = _make_token("admin-user", "admin")
+        admin_client.cookies.set(_COOKIE_NAME, token)
+        resp = admin_client.get("/admin/api/roles")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "admin-user" in data["admin"]
+        assert "viewer-user" in data["viewer"]
+
+    def test_update_roles(self, admin_client):
+        token = _make_token("admin-user", "admin")
+        admin_client.cookies.set(_COOKIE_NAME, token)
+        new_roles = {"admin": ["admin-user", "new-admin"], "viewer": ["viewer-user"]}
+        resp = admin_client.put("/admin/api/roles", json=new_roles)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data == new_roles
+
+        resp = admin_client.get("/admin/api/roles")
+        assert resp.status_code == 200
+        assert resp.json() == new_roles
+
+    def test_viewer_cannot_update_roles(self, admin_client):
+        token = _make_token("viewer-user", "viewer")
+        admin_client.cookies.set(_COOKIE_NAME, token)
+        resp = admin_client.put(
+            "/admin/api/roles",
+            json={"admin": ["viewer-user"], "viewer": []},
+        )
+        assert resp.status_code == 403
+
+    def test_get_oauth_status(self, admin_client):
+        token = _make_token("admin-user", "admin")
+        admin_client.cookies.set(_COOKIE_NAME, token)
+        resp = admin_client.get("/admin/api/oauth-status")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["configured"] is True
+        assert data["client_id"] == "fake***"
+        assert data["callback_url"] == "http://localhost:8000/admin/callback"
+
+    def test_viewer_cannot_see_oauth_status(self, admin_client):
+        token = _make_token("viewer-user", "viewer")
+        admin_client.cookies.set(_COOKIE_NAME, token)
+        resp = admin_client.get("/admin/api/oauth-status")
+        assert resp.status_code == 403
