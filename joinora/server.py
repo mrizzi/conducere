@@ -1,4 +1,6 @@
 import argparse
+import os
+import secrets
 import tempfile
 import threading
 from pathlib import Path
@@ -158,6 +160,12 @@ def main():
         default="stdio",
         help="MCP transport (default: stdio)",
     )
+    parser.add_argument(
+        "--admin-roles",
+        type=Path,
+        default=None,
+        help="Path to admin_roles.json for admin UI access control",
+    )
     args = parser.parse_args()
 
     server = create_server(
@@ -168,7 +176,19 @@ def main():
 
     from joinora.web import create_web_app
 
-    web_app = create_web_app(store=server._store)
+    jwt_secret = os.environ.get("JOINORA_ADMIN_JWT_SECRET") or secrets.token_urlsafe(32)
+    github_client_id = os.environ.get("JOINORA_GITHUB_CLIENT_ID", "")
+    github_client_secret = os.environ.get("JOINORA_GITHUB_CLIENT_SECRET", "")
+    base_url = f"http://{args.web_host}:{args.web_port}"
+
+    web_app = create_web_app(
+        store=server._store,
+        admin_roles_path=args.admin_roles,
+        jwt_secret=jwt_secret,
+        github_client_id=github_client_id,
+        github_client_secret=github_client_secret,
+        base_url=base_url,
+    )
     server._web_app = web_app
 
     def run_web():

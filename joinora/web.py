@@ -21,7 +21,14 @@ class JoinRequest(BaseModel):
     name: ParticipantName
 
 
-def create_web_app(store: SessionStore) -> FastAPI:
+def create_web_app(
+    store: SessionStore,
+    admin_roles_path: Path | None = None,
+    jwt_secret: str | None = None,
+    github_client_id: str | None = None,
+    github_client_secret: str | None = None,
+    base_url: str | None = None,
+) -> FastAPI:
     app = FastAPI()
     ws_manager = WebSocketManager()
     app.state.ws_manager = ws_manager
@@ -187,6 +194,19 @@ def create_web_app(store: SessionStore) -> FastAPI:
         if index.exists():
             return FileResponse(str(index))
         raise HTTPException(status_code=404, detail="Frontend not found")
+
+    if admin_roles_path and jwt_secret and github_client_id and github_client_secret:
+        from joinora.admin_web import create_admin_app
+
+        admin_app = create_admin_app(
+            store=store,
+            roles_path=admin_roles_path,
+            jwt_secret=jwt_secret,
+            github_client_id=github_client_id,
+            github_client_secret=github_client_secret,
+            base_url=base_url or "",
+        )
+        app.mount("/admin", admin_app)
 
     if frontend_dir.exists():
         app.mount(
