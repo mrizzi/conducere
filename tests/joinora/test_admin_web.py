@@ -340,6 +340,15 @@ class TestSettingsAPI:
         assert resp.status_code == 403
 
 
+class TestAdminFrontend:
+    def test_admin_spa_serves_html(self, admin_client):
+        token = _make_token("admin-user", "admin")
+        admin_client.cookies.set(_COOKIE_NAME, token)
+        resp = admin_client.get("/")
+        assert resp.status_code == 200
+        assert "Joinora Admin" in resp.text
+
+
 class TestAdminIntegration:
     def test_admin_routes_mounted_on_web_app(self, store, roles_file):
         from joinora.web import create_web_app
