@@ -12,9 +12,7 @@ repo = Path(tempfile.mkdtemp(prefix="joinora-test-"))
 store = SessionStore(repo_path=repo)
 
 session = store.create_session(title="Define Feature X")
-tokens = {}
-for name in ["alice", "bob"]:
-    tokens[name] = store.add_participant(session.id, name)
+tokens = {name: store.add_participant(session.id, name) for name in ["alice", "bob"]}
 
 store.add_message(
     session.id,
