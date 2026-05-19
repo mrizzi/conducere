@@ -156,7 +156,8 @@ header h1 { font-size: 1.2rem; color: #fff; }
     align-self: flex-end;
 }
 
-#send-btn:hover { background: #3a5ce7; }
+#send-btn:hover:not(:disabled) { background: #3a5ce7; }
+#send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
 /* Agent status dot */
 .agent-dot {

@@ -178,6 +178,7 @@
 
     function setAgentState(state) {
         agentDot.className = "agent-dot " + state;
+        sendBtn.disabled = state !== "listening";
         if (state === "processing") {
             showTypingIndicator();
         } else {
@@ -262,7 +263,7 @@
 
     sendBtn.addEventListener("click", sendMessage);
     inputEl.addEventListener("keydown", function (e) {
-        if (e.key === "Enter" && !e.shiftKey) {
+        if (e.key === "Enter" && !e.shiftKey && !sendBtn.disabled) {
             e.preventDefault();
             sendMessage();
         }
