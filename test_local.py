@@ -11,10 +11,10 @@ from joinora.web import create_web_app
 repo = Path(tempfile.mkdtemp(prefix="joinora-test-"))
 store = SessionStore(repo_path=repo)
 
-session, tokens = store.create_session(
-    title="Define Feature X",
-    participant_names=["alice", "bob"],
-)
+session = store.create_session(title="Define Feature X")
+tokens = {}
+for name in ["alice", "bob"]:
+    tokens[name] = store.add_participant(session.id, name)
 
 store.add_message(
     session.id,
